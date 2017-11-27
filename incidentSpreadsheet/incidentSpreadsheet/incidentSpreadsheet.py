@@ -1,9 +1,12 @@
 from __future__ import print_function
 import httplib2
 import os
+import itertools
 
+from fnmatch import fnmatch
+from datetime import datetime, timedelta
 from apiclient import discovery
-from oauth2client import client
+from oauth2client.service_account import ServiceAccountCredentials
 from oauth2client import tools
 from oauth2client.file import Storage
 
@@ -13,68 +16,66 @@ try:
 except ImportError:
     flags = None
 
-# If modifying these scopes, delete your previously saved credentials
-# at ~/.credentials/sheets.googleapis.com-python-quickstart.json
-SCOPES = 'https://www.googleapis.com/auth/spreadsheets.readonly'
-CLIENT_SECRET_FILE = 'client_secret.json'
-APPLICATION_NAME = 'Google Sheets API Python Quickstart'
+SCOPES = 'https://www.googleapis.com/auth/spreadsheets'
+dirpath = os.path.dirname(os.path.realpath(__file__))
+KEY_PATH =  dirpath + '\SLUGIS-2f3d7647c1b8.json'
+SERVICE_EMAIL = 'slugis@slugis-186423.iam.gserviceaccount.com'
 
+LOG_DIR = '//home/coreyf/gst_dashboard/data/' # For production use: //home/coreyf/gst_dashboard/data
+VEG_FIRE_CODES = ["FWL", "FWLCD", "FWLG", "FWLH", "FWLL", "FWLM", "FWLMTZ", "FWLT", "FWLZ", "FVCLW", "FVCTW", "FVCW", "FOO", "FOD", "FSRW", "MTC", "FVP", "FOAW"]
 
-def get_credentials():
-    """Gets valid user credentials from storage.
+def getFile():
+    date = datetime.today() - timedelta(days=1)
 
-    If nothing has been stored, or if the stored credentials are invalid,
-    the OAuth2 flow is completed to obtain the new credentials.
+    logs = (l for l in os.listdir(LOG_DIR) if fnmatch(l, '*_Log.txt'))
+    for log in logs:
+        date_str = log[0:9]
+        log_date = datetime.strptime(date_str, "%Y_%m%d")
+        if log_date.date() == date.date():
+            print(log)
+            return LOG_DIR + log
+    
+    return
 
-    Returns:
-        Credentials, the obtained credential.
-    """
-    home_dir = os.path.expanduser('~')
-    credential_dir = os.path.join(home_dir, '.credentials')
-    if not os.path.exists(credential_dir):
-        os.makedirs(credential_dir)
-    credential_path = os.path.join(credential_dir,
-                                   'sheets.googleapis.com-python-quickstart.json')
+def generateData():
+    values = []
 
-    store = Storage(credential_path)
-    credentials = store.get()
-    if not credentials or credentials.invalid:
-        flow = client.flow_from_clientsecrets(CLIENT_SECRET_FILE, SCOPES)
-        flow.user_agent = APPLICATION_NAME
-        if flags:
-            credentials = tools.run_flow(flow, store, flags)
-        else: # Needed only for compatibility with Python 2.6
-            credentials = tools.run(flow, store)
-        print('Storing credentials to ' + credential_path)
-    return credentials
+    # Get previous day log file & open it
+    logfile = open(getFile(), 'r') 
+
+    # Read Lines
+    for line in logfile:
+        # Split the line
+        fields = line.split('|')
+        if len(fields) > 9 and fields[7] and fields[8]:
+            # If it's a vegetation fire, add it to the values
+            if fields[5] in VEG_FIRE_CODES:
+                values.append(fields)
+
+    return {'values' : values }
 
 def main():
     """Shows basic usage of the Sheets API.
 
     Creates a Sheets API service object and prints the names and majors of
-    students in a sample spreadsheet:
-    https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit
+    students in a sample spreadsheet
     """
-    credentials = get_credentials()
-    http = credentials.authorize(httplib2.Http())
+
+    # Create service
+    credentials = ServiceAccountCredentials.from_json_keyfile_name(KEY_PATH, SCOPES)
+    http_auth = credentials.authorize(httplib2.Http())
     discoveryUrl = ('https://sheets.googleapis.com/$discovery/rest?'
                     'version=v4')
-    service = discovery.build('sheets', 'v4', http=http,
+    service = discovery.build('sheets', 'v4', http=http_auth,
                               discoveryServiceUrl=discoveryUrl)
 
-    spreadsheetId = '12A2DN5RlawDzPz_RfX5jN3YPNSNc6-xD8nVpwqS09is'
-    rangeName = 'Class Data!A2:E'
-    result = service.spreadsheets().values().get(
-        spreadsheetId=spreadsheetId, range=rangeName).execute()
-    values = result.get('values', [])
-
-    if not values:
-        print('No data found.')
-    else:
-        print('Name, Major:')
-        for row in values:
-            # Print columns A and E, which correspond to indices 0 and 4.
-            print('%s, %s' % (row[0], row[4]))
+    # Generate values for appending
+    body = generateData()
+    # Execute append
+    sheetId = '12A2DN5RlawDzPz_RfX5jN3YPNSNc6-xD8nVpwqS09is'
+    rangeName = 'GoogleSheet!A:F'
+    service.spreadsheets().values().append(
+        spreadsheetId=sheetId, range=rangeName, valueInputOption="RAW", body=body, insertDataOption="INSERT_ROWS").execute()
 
 
 if __name__ == '__main__':

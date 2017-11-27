@@ -259,3 +259,5 @@ paket-files/
 # Python Tools for Visual Studio (PTVS)
 __pycache__/
 *.pyc
+/incidentSpreadsheet/incidentSpreadsheet/SLUGIS-7c7a36e70ba8.p12
+/incidentSpreadsheet/incidentSpreadsheet/SLUGIS-2f3d7647c1b8.json

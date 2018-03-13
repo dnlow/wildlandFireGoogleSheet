@@ -55,12 +55,6 @@ def generateData():
     return {'values' : values }
 
 def main():
-    """Shows basic usage of the Sheets API.
-
-    Creates a Sheets API service object and prints the names and majors of
-    students in a sample spreadsheet
-    """
-
     # Create service
     credentials = ServiceAccountCredentials.from_json_keyfile_name(KEY_PATH, SCOPES)
     http_auth = credentials.authorize(httplib2.Http())
